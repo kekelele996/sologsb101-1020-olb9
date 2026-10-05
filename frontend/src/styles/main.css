@@ -333,3 +333,28 @@ body::before {
 .gb-diff-card.is-b {
   border-left: 4px solid #a8623a;
 }
+
+/* 实验室检测报告贴入框 */
+.gb-lab-textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 96px;
+  padding: 8px 10px;
+  border: 1px solid var(--gb-line);
+  border-radius: 8px;
+  background: #fffdf7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #2b2a26;
+}
+
+.gb-lab-textarea:focus {
+  outline: none;
+  border-color: #a8623a;
+  box-shadow: 0 0 0 2px rgba(168, 98, 58, 0.16);
+}
+
+.gb-lab-segmented {
+  margin-bottom: 10px;
+}

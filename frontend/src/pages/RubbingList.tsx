@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   App as AntdApp,
+  Badge,
   Button,
   Card,
   Form,
@@ -16,13 +17,15 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { DeleteOutlined, EditOutlined, PlusOutlined, TagsOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, ExperimentOutlined, PlusOutlined, TagsOutlined } from '@ant-design/icons';
 import EmptyPanel from '@/components/common/EmptyPanel';
 import FilterBar, { useFilterQuery, type FilterSelectConfig } from '@/components/common/FilterBar';
 import StatBadge from '@/components/common/StatBadge';
+import LabReportPanel from '@/components/lab/LabReportPanel';
 import { useAppDispatch, useAppSelector } from '@/stores/store';
 import { selectSteles, setCurrentStele } from '@/stores/steleSlice';
 import {
@@ -73,6 +76,8 @@ import {
   type SealType,
 } from '@/types/seal';
 import { selectLosses } from '@/stores/lossSlice';
+import { selectLabReports, selectPendingLabReports } from '@/stores/labSlice';
+import { labRoundLabel } from '@/types/labReport';
 import LossTag from '@/components/common/LossTag';
 
 const FILTER_KEYS = ['method', 'state'] as const;
@@ -88,6 +93,8 @@ export default function RubbingList() {
   const filtered = useAppSelector(selectFilteredRubbings);
   const seals = useAppSelector(selectSeals);
   const losses = useAppSelector(selectLosses);
+  const labReports = useAppSelector(selectLabReports);
+  const pendingLabReports = useAppSelector(selectPendingLabReports);
   const steleFilterId = useAppSelector((state) => state.rubbing.filters.steleId);
 
   const url = useFilterQuery(FILTER_KEYS);
@@ -95,6 +102,7 @@ export default function RubbingList() {
   const [editing, setEditing] = useState<Rubbing | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [batchState, setBatchState] = useState<RubbingState>('cataloged');
+  const [labOpen, setLabOpen] = useState(false);
 
   const [sealOpen, setSealOpen] = useState(false);
   const [sealRubbing, setSealRubbing] = useState<Rubbing | null>(null);
@@ -218,6 +226,43 @@ export default function RubbingList() {
     { title: '收藏号', dataIndex: 'collectionNo', width: 120, render: (value: string) => value || '未编' },
     { title: '年代判断', dataIndex: 'dateGuess', width: 120, render: (value: string) => value || '待考' },
     {
+      title: '实验室判定',
+      key: 'labVerdict',
+      width: 180,
+      render: (_value, record) => {
+        const verdictRows = labReports
+          .filter((report) => report.rubbingId === record.id)
+          .sort((a, b) => b.updatedAt - a.updatedAt);
+        if (verdictRows.length === 0) {
+          return (
+            <Tooltip title="本馆已有拓本但尚未收到实验室报告">
+              <Tag>未送检</Tag>
+            </Tooltip>
+          );
+        }
+        const latest = verdictRows[0];
+        const tooltip = (
+          <div>
+            {verdictRows.map((report) => (
+              <div key={report.requestNo} style={{ marginBottom: 4 }}>
+                {report.requestNo}（{labRoundLabel(report.round)}
+                {report.reportDate ? ` · ${report.reportDate}` : ''}）：{report.verdict || '无判定'}
+              </div>
+            ))}
+          </div>
+        );
+        return (
+          <Tooltip title={tooltip}>
+            <Space size={4} wrap>
+              <Tag color="purple">{latest.verdict || '实验室已判定'}</Tag>
+              {verdictRows.length > 1 ? <Tag color="geekblue">×{verdictRows.length}</Tag> : null}
+              {latest.round > 1 ? <Tag color="magenta">复检</Tag> : null}
+            </Space>
+          </Tooltip>
+        );
+      },
+    },
+    {
       title: '损泐 / 钤印',
       key: 'counts',
       width: 130,
@@ -296,6 +341,11 @@ export default function RubbingList() {
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             登记拓本
           </Button>
+          <Badge count={pendingLabReports.length} showZero color="#c9963c" title="待认领检测报告数">
+            <Button icon={<ExperimentOutlined />} onClick={() => setLabOpen(true)}>
+              实验室检测报告
+            </Button>
+          </Badge>
         </Space>
       </div>
 
@@ -571,6 +621,8 @@ export default function RubbingList() {
           </div>
         ) : null}
       </Modal>
+
+      <LabReportPanel open={labOpen} onClose={() => setLabOpen(false)} />
     </div>
   );
 }

@@ -44,7 +44,7 @@ docker compose up -d --build      # 代码改动后重新构建
 | 构建工具 | Vite 5 | 开发服务器端口 22820 |
 | 状态管理 | Redux Toolkit 2 + React Redux 9 | `steleSlice` / `rubbingSlice` / `lossSlice` + `store.ts` 类型化 hooks |
 | 路由 | React Router 6（`createBrowserRouter`，history 模式） | nginx 侧配合 `try_files` 做 SPA fallback |
-| 本地存储 | Dexie 4（IndexedDB 封装）+ localStorage | 含数据结构版本号与 v1→v2 升级迁移 |
+| 本地存储 | Dexie 4（IndexedDB 封装）+ localStorage | 含数据结构版本号与 v1→v2→v3 升级迁移 |
 | 容器化 | Docker 多阶段构建：`node:20-alpine` → `nginx:alpine` | 构建阶段类型检查 + 打包，运行阶段仅托管静态产物 |
 
 ---
@@ -68,7 +68,7 @@ npm run preview    # 本地预览构建产物（http://localhost:22820）
 | 路由 | 页面 | 主要职责 | 消费模型 |
 | --- | --- | --- | --- |
 | `/steles` | 碑刻与所在地台账 | 新建碑刻、按年代与形制筛选（同步 URL query），卡片回显已收拓本数、损泐字位与最近断代结论 | Stele、Rubbing、Loss、Compare |
-| `/rubbings` | 拓本登记 | 录入拓法、纸墨、尺寸与收藏号；同碑自动生成版本序号，钤印增删改与批量调整印别，批量改状态 | Rubbing、Seal、Stele |
+| `/rubbings` | 拓本登记 | 录入拓法、纸墨、尺寸与收藏号；同碑自动生成版本序号，钤印增删改与批量调整印别，批量改状态；**「实验室检测报告」抽屉可整批贴入实验室对账单并看待认领单** | Rubbing、Seal、Stele、LabReport |
 | `/losses` | 损泐字位标注台 | 行号 × 字位网格逐格标注，批量改严重程度；选定基准拓本即时高亮差异字位 | Loss、Rubbing |
 | `/compare` | 同碑多版本比对与断代 | 选定 A/B 两拓本，按字位坐标比对损泐集合并排展示差异，推断早本 / 晚本 / 同版 / 待考并落库 | Compare、Loss、Rubbing |
 | `/export` | 编目卡生成与导出 | 按碑刻生成编目卡文本、合订导出、钤印明细、JSON 导入导出、损泐台账 CSV、清空重播种 | 全部模型 |
@@ -86,8 +86,12 @@ npm run preview    # 本地预览构建产物（http://localhost:22820）
 | Loss 损泐字位 | `src/types/loss.ts` | `id` `rubbingId` `lineNo` `charNo` `type`（缺字/裂痕/漫漶/石花） `severity`（轻/中/重） `note` | 按行列网格标注，同碑同字位自动并排对比 |
 | Seal 钤印 | `src/types/seal.ts` | `id` `rubbingId` `sealText` `position` `transcription` `sealType`（收藏印/鉴赏印/作者印） | 按位置排序展示，支持批量改印别 |
 | Compare 版本比对 | `src/types/compare.ts` | `id` `steleId` `rubbingIdA` `rubbingIdB` `diffCount` `conclusion`（早本/晚本/同版/待考） `operator` `date` | 选定两拓本即生成差异清单并回写断代结论 |
+| LabReport 实验室检测报告 | `src/types/labReport.ts` | `requestNo`（送检单号，主键） `paperType` `inkGrade`（浓墨/淡墨档位） `verdict`（实验室判定） `reportDate` `rubbingId`（挂接拓本，null 为待认领） `matchMode` `round`（复检轮次） | 先按送检单号、再按纸种墨色挂接到拓本；同一送检单晚到复检覆盖，对不上的进待认领 |
 
-数据结构版本号 `DB_SCHEMA_VERSION` 定义在 `src/utils/db.ts`，当前为 `v2`：`losses` 表增加 `charNo` 与 `[rubbingId+lineNo+charNo]` 复合索引，并在 Dexie `.upgrade()` 中按行号顺序为历史字位记录重建 `charNo`。
+数据结构版本号 `DB_SCHEMA_VERSION` 定义在 `src/utils/db.ts`，当前为 `v3`：
+
+- `v1→v2`：`losses` 表增加 `charNo` 与 `[rubbingId+lineNo+charNo]` 复合索引，并在 Dexie `.upgrade()` 中按行号顺序为历史字位记录重建 `charNo`；
+- `v2→v3`：新增 `labReports` 实验室检测报告表（送检单号主键，`rubbingId` 挂接拓本）。老库升级后本馆已有拓本均按「未送检」显示；旧备份 JSON（无 `labReports` 集合）可正常导入，缺省为空。
 
 ---
 
@@ -97,13 +101,14 @@ npm run preview    # 本地预览构建产物（http://localhost:22820）
 sologsb101-1020/
 ├── frontend/                     # 前端源码
 │   ├── src/
-│   │   ├── types/                # stele.ts rubbing.ts loss.ts seal.ts compare.ts
-│   │   ├── stores/               # steleSlice.ts rubbingSlice.ts lossSlice.ts store.ts
+│   │   ├── types/                # stele.ts rubbing.ts loss.ts seal.ts compare.ts labReport.ts
+│   │   ├── stores/               # steleSlice.ts rubbingSlice.ts lossSlice.ts labSlice.ts store.ts
 │   │   ├── components/common/    # LossTag.tsx FilterBar.tsx StatBadge.tsx EmptyPanel.tsx
+│   │   ├── components/lab/       # LabReportPanel.tsx
 │   │   ├── hooks/                # useLossDiff.ts useIdbTable.ts
 │   │   ├── pages/                # SteleList.tsx RubbingList.tsx LossBoard.tsx CompareView.tsx ExportView.tsx
 │   │   ├── router/               # index.tsx
-│   │   ├── utils/                # collate.ts db.ts export.ts
+│   │   ├── utils/                # collate.ts db.ts export.ts labMatch.ts
 │   │   ├── styles/               # main.css
 │   │   ├── App.tsx main.tsx
 │   ├── public/favicon.svg
@@ -123,9 +128,10 @@ sologsb101-1020/
 
 ## 七、数据存储说明
 
-- **IndexedDB（Dexie，数据库名 `gbrubbing`）**：5 张业务表 `steles` / `rubbings` / `losses` / `seals` / `compares`，由 `src/utils/db.ts` 统一定义 schema、版本号与升级迁移；`initDatabase()` 首次打开时自动播种**三层互相引用**的演示数据（Stele → Rubbing → Loss / Seal，另有 Stele → Compare，固定 id 如 `stele_01`、`rub_0101`、`loss_010101`），播种幂等，保证字位网格与比对台打开即有内容。
+- **IndexedDB（Dexie，数据库名 `gbrubbing`）**：6 张业务表 `steles` / `rubbings` / `losses` / `seals` / `compares` / `labReports`，由 `src/utils/db.ts` 统一定义 schema、版本号与升级迁移；`initDatabase()` 首次打开时自动播种**三层互相引用**的演示数据（Stele → Rubbing → Loss / Seal，另有 Stele → Compare，固定 id 如 `stele_01`、`rub_0101`、`loss_010101`；另含三条演示检测报告覆盖单号挂接、纸墨兜底与待认领），播种幂等，保证字位网格与比对台打开即有内容。
+- **实验室检测报告对账**：在 `/rubbings` 页「实验室检测报告」抽屉中整批贴入（每行：送检单号、纸种、墨色档位、实验室判定、报告日期，制表符或逗号分隔）。挂接规则集中在 `src/utils/labMatch.ts`：先按送检单号（与拓本收藏号对应），再按纸种 + 墨色档位唯一匹配；仍对不上（查无或多义）的报告 `rubbingId=null` 进入**待认领**，可人工认领，绝不丢单。同一送检单补发复检时按主键覆盖、`round` 递增并沿用原挂接，以晚到的为准。整批写入在单个 Dexie 事务内完成，任一失败**整批回滚**到贴之前的样子（拓本等其余表不受影响）。删除拓本时其报告自动退回待认领。实验室判定仅挂接展示（拓本列表「实验室判定」列、编目卡），**不改写**编目员填的拓法与断代结论；本馆已有拓本在收到报告前一律显示「未送检」。
 - **localStorage**：仅存元数据 —— `gbrubbing:db-version`（本地结构版本）、`gbrubbing:last-backup-at`（最近导出时间）、`gbrubbing:ui-prefs`（当前碑刻 / 拓本）。
-- **备份**：`/export` 页可导出 JSON（5 张表全量数据 + 结构版本号），导入时校验 `app` 字段与各集合数组完整性，覆盖导入前二次确认；另有编目卡 TXT 与损泐台账 CSV。
+- **备份**：`/export` 页可导出 JSON（6 张表全量数据 + 结构版本号），导入时校验 `app` 字段与各集合数组完整性（v2 旧备份缺 `labReports` 时按空集合兼容），覆盖导入前二次确认；另有编目卡 TXT 与损泐台账 CSV。
 - **隐私与无状态**：数据不上传任何服务器，容器不挂载命名卷；清理浏览器站点数据或更换浏览器会丢失档案，请定期导出备份。
 
 ---
