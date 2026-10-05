@@ -73,6 +73,7 @@ import {
   type SealType,
 } from '@/types/seal';
 import { selectLosses } from '@/stores/lossSlice';
+import { selectLabReportByRubbing } from '@/stores/labReportSlice';
 import LossTag from '@/components/common/LossTag';
 
 const FILTER_KEYS = ['method', 'state'] as const;
@@ -89,6 +90,7 @@ export default function RubbingList() {
   const seals = useAppSelector(selectSeals);
   const losses = useAppSelector(selectLosses);
   const steleFilterId = useAppSelector((state) => state.rubbing.filters.steleId);
+  const labReportOf = useAppSelector((state) => (rubbingId: string) => selectLabReportByRubbing(state, rubbingId));
 
   const url = useFilterQuery(FILTER_KEYS);
   const [open, setOpen] = useState(false);
@@ -157,6 +159,7 @@ export default function RubbingList() {
       inkTone: rubbing.inkTone,
       sizeCm: rubbing.sizeCm,
       collectionNo: rubbing.collectionNo,
+      labOrderNo: rubbing.labOrderNo ?? '',
       dateGuess: rubbing.dateGuess,
       state: rubbing.state,
     });
@@ -216,6 +219,25 @@ export default function RubbingList() {
     { title: '墨色', dataIndex: 'inkTone', width: 90, render: (value: InkTone) => INK_TONE_LABEL[value] },
     { title: '尺寸', dataIndex: 'sizeCm', width: 110, render: (value: string) => value || '未记' },
     { title: '收藏号', dataIndex: 'collectionNo', width: 120, render: (value: string) => value || '未编' },
+    {
+      title: '送检 / 实验室判定',
+      key: 'lab',
+      width: 170,
+      render: (_value, record) => {
+        const orderNo = record.labOrderNo ?? '';
+        const report = labReportOf(record.id);
+        if (!orderNo) return <Tag>未送检</Tag>;
+        if (!report) return <Tag color="gold">已送检 · 待回报告</Tag>;
+        return (
+          <Space size={4} wrap>
+            <Tag color="#2f6f4f">已挂判定</Tag>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {report.paperType} · {INK_TONE_LABEL[report.inkTone]}
+            </Typography.Text>
+          </Space>
+        );
+      },
+    },
     { title: '年代判断', dataIndex: 'dateGuess', width: 120, render: (value: string) => value || '待考' },
     {
       title: '损泐 / 钤印',
@@ -420,6 +442,9 @@ export default function RubbingList() {
               <Input placeholder="如：明拓" />
             </Form.Item>
           </Space>
+          <Form.Item name="labOrderNo" label="送检单号">
+            <Input placeholder="送实验室检测时登记，如：SJ-2026-001；留空为未送检" />
+          </Form.Item>
           <Form.Item name="state" label="状态" rules={[{ required: true }]}>
             <Select options={[...RUBBING_STATE_OPTIONS]} />
           </Form.Item>

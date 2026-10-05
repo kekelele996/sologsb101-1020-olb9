@@ -11,13 +11,14 @@ import type { Rubbing } from '@/types/rubbing';
 import type { Loss } from '@/types/loss';
 import type { Seal } from '@/types/seal';
 import type { Compare } from '@/types/compare';
+import type { LabReport } from '@/types/labReport';
 import { sortLosses } from './collate';
 
 /** 数据库名（README 与导出文件均使用该名称） */
 export const DB_NAME = 'gbrubbing';
 
 /** 当前数据结构版本号 */
-export const DB_SCHEMA_VERSION = 2;
+export const DB_SCHEMA_VERSION = 3;
 
 /** localStorage 侧少量元数据键 */
 export const LS_KEYS = {
@@ -85,6 +86,7 @@ class RubbingDatabase extends Dexie {
   losses!: Table<Loss, string>;
   seals!: Table<Seal, string>;
   compares!: Table<Compare, string>;
+  labReports!: Table<LabReport, string>;
 
   constructor() {
     super(DB_NAME);
@@ -99,7 +101,7 @@ class RubbingDatabase extends Dexie {
     });
 
     // v2：Loss 增加 charNo 与 [rubbingId+lineNo+charNo] 复合索引，并按行号顺序重建历史字位记录
-    this.version(DB_SCHEMA_VERSION)
+    this.version(2)
       .stores({
         steles: 'id, title, era, form, location, updatedAt',
         rubbings: 'id, steleId, versionNo, method, inkTone, state, updatedAt',
@@ -127,6 +129,25 @@ class RubbingDatabase extends Dexie {
           });
         });
         await table.bulkPut(sortLosses(rebuilt));
+      });
+
+    // v3：新增 labReports 检测报告表；既有拓本补 labOrderNo 字段（升级上来按未送检显示）
+    this.version(DB_SCHEMA_VERSION)
+      .stores({
+        steles: 'id, title, era, form, location, updatedAt',
+        rubbings: 'id, steleId, versionNo, method, inkTone, state, labOrderNo, updatedAt',
+        losses: 'id, rubbingId, lineNo, charNo, [rubbingId+lineNo+charNo], type, severity, updatedAt',
+        seals: 'id, rubbingId, sealType, position, updatedAt',
+        compares: 'id, steleId, rubbingIdA, rubbingIdB, conclusion, date, updatedAt',
+        labReports: 'id, orderNo, status, matchedRubbingId, reportDate, updatedAt',
+      })
+      .upgrade(async (tx) => {
+        const rubbings = tx.table<Rubbing>('rubbings');
+        const all = await rubbings.toArray();
+        const patched = all
+          .filter((rubbing) => typeof rubbing.labOrderNo !== 'string')
+          .map((rubbing) => ({ ...rubbing, labOrderNo: '', updatedAt: Date.now() }));
+        if (patched.length > 0) await rubbings.bulkPut(patched);
       });
   }
 }
@@ -192,11 +213,11 @@ export async function seedDatabase(): Promise<void> {
   ];
 
   const rubbings: Rubbing[] = [
-    { id: 'rub_0101', steleId: 'stele_01', versionNo: 1, method: 'rub', paperType: '宣纸', inkTone: 'thick', sizeCm: '210×88', collectionNo: 'TB-0101', dateGuess: '明拓', state: 'cataloged', createdAt: now - day * 50, updatedAt: now - day * 10 },
-    { id: 'rub_0102', steleId: 'stele_01', versionNo: 2, method: 'cicada', paperType: '棉连纸', inkTone: 'light', sizeCm: '208×86', collectionNo: 'TB-0102', dateGuess: '清拓', state: 'toCompare', createdAt: now - day * 44, updatedAt: now - day * 6 },
-    { id: 'rub_0201', steleId: 'stele_02', versionNo: 1, method: 'pat', paperType: '皮纸', inkTone: 'thick', sizeCm: '250×196', collectionNo: 'TB-0201', dateGuess: '清中期拓', state: 'cataloged', createdAt: now - day * 40, updatedAt: now - day * 5 },
-    { id: 'rub_0202', steleId: 'stele_02', versionNo: 2, method: 'rub', paperType: '棉连纸', inkTone: 'light', sizeCm: '248×194', collectionNo: 'TB-0202', dateGuess: '清晚期拓', state: 'toCatalog', createdAt: now - day * 34, updatedAt: now - day * 4 },
-    { id: 'rub_0301', steleId: 'stele_03', versionNo: 1, method: 'rub', paperType: '净皮宣', inkTone: 'thick', sizeCm: '260×90', collectionNo: 'TB-0301', dateGuess: '民国拓', state: 'toCatalog', createdAt: now - day * 20, updatedAt: now - day * 2 },
+    { id: 'rub_0101', steleId: 'stele_01', versionNo: 1, method: 'rub', paperType: '宣纸', inkTone: 'thick', sizeCm: '210×88', collectionNo: 'TB-0101', labOrderNo: 'SJ-2026-001', dateGuess: '明拓', state: 'cataloged', createdAt: now - day * 50, updatedAt: now - day * 10 },
+    { id: 'rub_0102', steleId: 'stele_01', versionNo: 2, method: 'cicada', paperType: '棉连纸', inkTone: 'light', sizeCm: '208×86', collectionNo: 'TB-0102', labOrderNo: '', dateGuess: '清拓', state: 'toCompare', createdAt: now - day * 44, updatedAt: now - day * 6 },
+    { id: 'rub_0201', steleId: 'stele_02', versionNo: 1, method: 'pat', paperType: '皮纸', inkTone: 'thick', sizeCm: '250×196', collectionNo: 'TB-0201', labOrderNo: '', dateGuess: '清中期拓', state: 'cataloged', createdAt: now - day * 40, updatedAt: now - day * 5 },
+    { id: 'rub_0202', steleId: 'stele_02', versionNo: 2, method: 'rub', paperType: '棉连纸', inkTone: 'light', sizeCm: '248×194', collectionNo: 'TB-0202', labOrderNo: '', dateGuess: '清晚期拓', state: 'toCatalog', createdAt: now - day * 34, updatedAt: now - day * 4 },
+    { id: 'rub_0301', steleId: 'stele_03', versionNo: 1, method: 'rub', paperType: '净皮宣', inkTone: 'thick', sizeCm: '260×90', collectionNo: 'TB-0301', labOrderNo: '', dateGuess: '民国拓', state: 'toCatalog', createdAt: now - day * 20, updatedAt: now - day * 2 },
   ];
 
   const losses: Loss[] = [
@@ -224,12 +245,43 @@ export async function seedDatabase(): Promise<void> {
     { id: 'cmp_0201', steleId: 'stele_02', rubbingIdA: 'rub_0201', rubbingIdB: 'rub_0202', diffCount: 1, conclusion: 'late', operator: '傅砚', date: '2026-03-08', createdAt: now - day * 3, updatedAt: now - day * 3 },
   ];
 
-  await db.transaction('rw', [db.steles, db.rubbings, db.losses, db.seals, db.compares], async () => {
+  // 检测报告：一份已挂上（对应 rub_0101 的送检单），一份待认领（本馆暂无对应拓本）
+  const labReports: LabReport[] = [
+    {
+      id: 'lab_01',
+      orderNo: 'SJ-2026-001',
+      paperType: '宣纸',
+      inkTone: 'thick',
+      status: 'matched',
+      matchedRubbingId: 'rub_0101',
+      reportDate: '2026-09-01',
+      lab: '合作纸张实验室',
+      note: '复检以本次为准',
+      createdAt: now - day * 8,
+      updatedAt: now - day * 2,
+    },
+    {
+      id: 'lab_02',
+      orderNo: 'SJ-2026-002',
+      paperType: '棉连纸',
+      inkTone: 'light',
+      status: 'pending',
+      matchedRubbingId: null,
+      reportDate: '2026-09-10',
+      lab: '合作纸张实验室',
+      note: '待认领：本馆无此送检单对应拓本',
+      createdAt: now - day * 1,
+      updatedAt: now - day * 1,
+    },
+  ];
+
+  await db.transaction('rw', [db.steles, db.rubbings, db.losses, db.seals, db.compares, db.labReports], async () => {
     await db.steles.bulkPut(steles);
     await db.rubbings.bulkPut(rubbings);
     await db.losses.bulkPut(losses);
     await db.seals.bulkPut(seals);
     await db.compares.bulkPut(compares);
+    await db.labReports.bulkPut(labReports);
   });
 }
 
@@ -244,15 +296,17 @@ export interface RubbingSnapshot {
   losses: Loss[];
   seals: Seal[];
   compares: Compare[];
+  labReports: LabReport[];
 }
 
 export async function exportSnapshot(): Promise<RubbingSnapshot> {
-  const [steles, rubbings, losses, seals, compares] = await Promise.all([
+  const [steles, rubbings, losses, seals, compares, labReports] = await Promise.all([
     db.steles.toArray(),
     db.rubbings.toArray(),
     db.losses.toArray(),
     db.seals.toArray(),
     db.compares.toArray(),
+    db.labReports.toArray(),
   ]);
   return {
     app: DB_NAME,
@@ -263,6 +317,7 @@ export async function exportSnapshot(): Promise<RubbingSnapshot> {
     losses,
     seals,
     compares,
+    labReports,
   };
 }
 
@@ -271,33 +326,39 @@ export function validateSnapshot(input: unknown): string {
   if (typeof input !== 'object' || input === null) return '文件内容不是合法的 JSON 对象';
   const snapshot = input as Partial<RubbingSnapshot>;
   if (snapshot.app !== DB_NAME) return `备份文件不属于本项目（app=${String(snapshot.app)}）`;
+  // 旧版备份可能没有 labReports 集合，导入时按空集合处理，不拦截
   const keys: Array<keyof RubbingSnapshot> = ['steles', 'rubbings', 'losses', 'seals', 'compares'];
   for (const key of keys) {
     if (!Array.isArray(snapshot[key])) return `备份文件缺少 ${String(key)} 集合`;
+  }
+  if (snapshot.labReports !== undefined && !Array.isArray(snapshot.labReports)) {
+    return '备份文件的 labReports 集合格式不正确';
   }
   return '';
 }
 
 export async function clearAllTables(): Promise<void> {
-  await db.transaction('rw', [db.steles, db.rubbings, db.losses, db.seals, db.compares], async () => {
+  await db.transaction('rw', [db.steles, db.rubbings, db.losses, db.seals, db.compares, db.labReports], async () => {
     await Promise.all([
       db.steles.clear(),
       db.rubbings.clear(),
       db.losses.clear(),
       db.seals.clear(),
       db.compares.clear(),
+      db.labReports.clear(),
     ]);
   });
 }
 
 export async function importSnapshot(snapshot: RubbingSnapshot): Promise<void> {
   await clearAllTables();
-  await db.transaction('rw', [db.steles, db.rubbings, db.losses, db.seals, db.compares], async () => {
+  await db.transaction('rw', [db.steles, db.rubbings, db.losses, db.seals, db.compares, db.labReports], async () => {
     await db.steles.bulkPut(snapshot.steles);
     await db.rubbings.bulkPut(snapshot.rubbings);
     await db.losses.bulkPut(snapshot.losses);
     await db.seals.bulkPut(snapshot.seals);
     await db.compares.bulkPut(snapshot.compares);
+    await db.labReports.bulkPut(snapshot.labReports ?? []);
   });
 }
 
@@ -307,23 +368,31 @@ export async function resetDatabase(): Promise<void> {
 }
 
 export async function countAll(): Promise<Record<string, number>> {
-  const [steles, rubbings, losses, seals, compares] = await Promise.all([
+  const [steles, rubbings, losses, seals, compares, labReports] = await Promise.all([
     db.steles.count(),
     db.rubbings.count(),
     db.losses.count(),
     db.seals.count(),
     db.compares.count(),
+    db.labReports.count(),
   ]);
-  return { steles, rubbings, losses, seals, compares };
+  return { steles, rubbings, losses, seals, compares, labReports };
 }
 
-/** 级联删除碑刻 → 拓本 → 损泐 / 钤印 / 比对 */
+/** 级联删除碑刻 → 拓本 → 损泐 / 钤印 / 比对；已挂检测报告回退为待认领（不丢） */
 export async function removeSteleCascade(steleId: string): Promise<void> {
   const rubbingIds = (await db.rubbings.where('steleId').equals(steleId).toArray()).map((row) => row.id);
-  await db.transaction('rw', [db.steles, db.rubbings, db.losses, db.seals, db.compares], async () => {
+  await db.transaction('rw', [db.steles, db.rubbings, db.losses, db.seals, db.compares, db.labReports], async () => {
     if (rubbingIds.length > 0) {
       await db.losses.where('rubbingId').anyOf(rubbingIds).delete();
       await db.seals.where('rubbingId').anyOf(rubbingIds).delete();
+      // 已挂实验室判定回退为待认领，报告不丢
+      const reports = await db.labReports.where('matchedRubbingId').anyOf(rubbingIds).toArray();
+      if (reports.length > 0) {
+        await db.labReports.bulkPut(
+          reports.map((report) => ({ ...report, status: 'pending' as const, matchedRubbingId: null, updatedAt: Date.now() })),
+        );
+      }
     }
     await db.rubbings.where('steleId').equals(steleId).delete();
     await db.compares.where('steleId').equals(steleId).delete();
@@ -331,14 +400,21 @@ export async function removeSteleCascade(steleId: string): Promise<void> {
   });
 }
 
-/** 级联删除拓本 → 损泐 / 钤印 / 涉及的比对记录 */
+/** 级联删除拓本 → 损泐 / 钤印 / 涉及的比对记录；已挂的检测报告回退为待认领（不丢） */
 export async function removeRubbingCascade(rubbingId: string): Promise<void> {
-  await db.transaction('rw', [db.rubbings, db.losses, db.seals, db.compares], async () => {
+  await db.transaction('rw', [db.rubbings, db.losses, db.seals, db.compares, db.labReports], async () => {
     await db.losses.where('rubbingId').equals(rubbingId).delete();
     await db.seals.where('rubbingId').equals(rubbingId).delete();
     const compares = await db.compares.toArray();
     const affected = compares.filter((row) => row.rubbingIdA === rubbingId || row.rubbingIdB === rubbingId);
     if (affected.length > 0) await db.compares.bulkDelete(affected.map((row) => row.id));
+    // 已挂实验室判定回退为待认领，送检单号保留，报告不丢
+    const reports = await db.labReports.where('matchedRubbingId').equals(rubbingId).toArray();
+    if (reports.length > 0) {
+      await db.labReports.bulkPut(
+        reports.map((report) => ({ ...report, status: 'pending' as const, matchedRubbingId: null, updatedAt: Date.now() })),
+      );
+    }
     await db.rubbings.delete(rubbingId);
   });
 }

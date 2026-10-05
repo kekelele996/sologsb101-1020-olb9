@@ -1,6 +1,6 @@
 /**
  * 路由表（与提示词逐字一致）
- * /steles、/rubbings、/losses、/compare、/export
+ * /steles、/rubbings、/losses、/compare、/export、/lab
  * 页面按路由懒加载，构建时自动分包。
  */
 import { Suspense, lazy, type ReactNode } from 'react';
@@ -13,6 +13,7 @@ const RubbingList = lazy(() => import('../pages/RubbingList'));
 const LossBoard = lazy(() => import('../pages/LossBoard'));
 const CompareView = lazy(() => import('../pages/CompareView'));
 const ExportView = lazy(() => import('../pages/ExportView'));
+const LabReportList = lazy(() => import('../pages/LabReportList'));
 
 export const ROUTES = {
   steles: '/steles',
@@ -20,6 +21,7 @@ export const ROUTES = {
   losses: '/losses',
   compare: '/compare',
   export: '/export',
+  lab: '/lab',
 } as const;
 
 function RouteFallback() {
@@ -40,6 +42,7 @@ export const appRoutes: RouteObject[] = [
       { path: 'rubbings', element: withSuspense(<RubbingList />) },
       { path: 'losses', element: withSuspense(<LossBoard />) },
       { path: 'compare', element: withSuspense(<CompareView />) },
+      { path: 'lab', element: withSuspense(<LabReportList />) },
       { path: 'export', element: withSuspense(<ExportView />) },
       { path: '*', element: <Navigate to={ROUTES.steles} replace /> },
     ],

@@ -28,6 +28,8 @@ export interface Rubbing {
   sizeCm: string;
   /** 收藏号 */
   collectionNo: string;
+  /** 送检单号：送实验室检测时登记，为空表示未送检；检测报告据此对账挂判定 */
+  labOrderNo?: string;
   /** 年代判断 */
   dateGuess: string;
   /** 状态 */
@@ -97,6 +99,7 @@ export function createEmptyRubbingDraft(steleId: string, versionNo: number): Rub
     inkTone: 'thick',
     sizeCm: '',
     collectionNo: '',
+    labOrderNo: '',
     dateGuess: '',
     state: 'toCatalog',
   };

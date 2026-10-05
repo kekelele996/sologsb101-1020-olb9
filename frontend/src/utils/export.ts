@@ -7,6 +7,7 @@ import type { Rubbing } from '@/types/rubbing';
 import type { Loss } from '@/types/loss';
 import type { Seal } from '@/types/seal';
 import type { Compare } from '@/types/compare';
+import type { LabReport } from '@/types/labReport';
 import { STELE_FORM_LABEL } from '@/types/stele';
 import { INK_TONE_LABEL, RUBBING_METHOD_LABEL, RUBBING_STATE_LABEL } from '@/types/rubbing';
 import { LOSS_SEVERITY_LABEL, LOSS_TYPE_LABEL } from '@/types/loss';
@@ -44,13 +45,14 @@ function csvCell(value: string | number | null): string {
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-/** 编目卡：一块碑刻 + 其拓本 + 损泐 + 钤印 + 比对结论 */
+/** 编目卡：一块碑刻 + 其拓本 + 损泐 + 钤印 + 比对结论（含实验室判定） */
 export function buildCatalogCard(
   stele: Stele,
   rubbings: Rubbing[],
   losses: Loss[],
   seals: Seal[],
   compares: Compare[],
+  labReports: LabReport[] = [],
 ): string {
   const lines: string[] = [];
   lines.push(`【碑帖编目卡】${stele.title}`);
@@ -69,6 +71,14 @@ export function buildCatalogCard(
       lines.push(
         `第 ${rubbing.versionNo} 版　${RUBBING_METHOD_LABEL[rubbing.method]}　${INK_TONE_LABEL[rubbing.inkTone]}　${rubbing.paperType}　${rubbing.sizeCm || '尺寸未记'}　收藏号 ${rubbing.collectionNo || '未编'}　${rubbing.dateGuess || '年代待考'}　${RUBBING_STATE_LABEL[rubbing.state]}`,
       );
+      const lab = labReports.find((report) => report.status === 'matched' && report.matchedRubbingId === rubbing.id);
+      if (lab) {
+        lines.push(
+          `　实验室判定（送检单 ${lab.orderNo}${lab.reportDate ? ` · ${lab.reportDate}` : ''}）：${lab.paperType}　${INK_TONE_LABEL[lab.inkTone]}${lab.lab ? `　${lab.lab}` : ''}`,
+        );
+      } else if (rubbing.labOrderNo) {
+        lines.push(`　送检单 ${rubbing.labOrderNo}：已送检，待实验室报告`);
+      }
       lines.push(`　损泐字位（${rubbingLosses.length} 条）：`);
       if (rubbingLosses.length === 0) lines.push('　　无');
       rubbingLosses.forEach((loss) => {
@@ -106,9 +116,10 @@ export function exportCatalogCard(
   losses: Loss[],
   seals: Seal[],
   compares: Compare[],
+  labReports: LabReport[] = [],
 ): string {
   const filename = `${stele.title}-编目卡-${stampSuffix()}.txt`;
-  download(filename, buildCatalogCard(stele, rubbings, losses, seals, compares), 'text/plain;charset=utf-8');
+  download(filename, buildCatalogCard(stele, rubbings, losses, seals, compares, labReports), 'text/plain;charset=utf-8');
   return filename;
 }
 
@@ -118,6 +129,7 @@ export interface ExportContext {
   losses: Loss[];
   seals: Seal[];
   compares: Compare[];
+  labReports: LabReport[];
 }
 
 /** 全部碑刻的编目卡合订文本 */
@@ -131,6 +143,7 @@ export function buildAllCatalogCards(context: ExportContext): string {
         context.losses,
         context.seals,
         context.compares,
+        context.labReports,
       ),
     )
     .join('\n\n————————————————\n\n');

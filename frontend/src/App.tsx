@@ -9,6 +9,7 @@ import {
   AppstoreOutlined,
   BookOutlined,
   DiffOutlined,
+  ExperimentOutlined,
   ExportOutlined,
   FileSearchOutlined,
   PrinterOutlined,
@@ -18,6 +19,7 @@ import { loadAll, useAppDispatch, useAppSelector } from './stores/store';
 import { selectSteles } from './stores/steleSlice';
 import { selectRubbings } from './stores/rubbingSlice';
 import { selectLosses } from './stores/lossSlice';
+import { selectPendingLabReports } from './stores/labReportSlice';
 import { initDatabase } from './utils/db';
 import { STELE_FORM_LABEL } from './types/stele';
 
@@ -32,6 +34,7 @@ export default function App() {
   const steles = useAppSelector(selectSteles);
   const rubbings = useAppSelector(selectRubbings);
   const losses = useAppSelector(selectLosses);
+  const pendingReports = useAppSelector(selectPendingLabReports);
   const currentSteleId = useAppSelector((state) => state.stele.currentSteleId);
 
   useEffect(() => {
@@ -58,9 +61,11 @@ export default function App() {
       ? ROUTES.losses
       : location.pathname.startsWith('/compare')
         ? ROUTES.compare
-        : location.pathname.startsWith('/export')
-          ? ROUTES.export
-          : ROUTES.steles;
+        : location.pathname.startsWith('/lab')
+          ? ROUTES.lab
+          : location.pathname.startsWith('/export')
+            ? ROUTES.export
+            : ROUTES.steles;
 
   return (
     <Layout style={{ minHeight: '100vh', background: 'transparent' }}>
@@ -84,6 +89,11 @@ export default function App() {
             { key: ROUTES.rubbings, icon: <PrinterOutlined />, label: '拓本登记' },
             { key: ROUTES.losses, icon: <BookOutlined />, label: '损泐字位' },
             { key: ROUTES.compare, icon: <DiffOutlined />, label: '版本比对' },
+            {
+              key: ROUTES.lab,
+              icon: <ExperimentOutlined />,
+              label: <Badge count={pendingReports.length} size="small" offset={[6, -2]}>检测报告</Badge>,
+            },
             { key: ROUTES.export, icon: <ExportOutlined />, label: '编目卡导出' },
           ]}
         />

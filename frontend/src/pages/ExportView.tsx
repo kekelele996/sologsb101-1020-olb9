@@ -34,6 +34,7 @@ import { loadAll } from '@/stores/store';
 import { selectSteles, setCurrentStele } from '@/stores/steleSlice';
 import { selectRubbings } from '@/stores/rubbingSlice';
 import { selectCompares, selectLosses } from '@/stores/lossSlice';
+import { selectLabReports } from '@/stores/labReportSlice';
 import { SEAL_TYPE_COLOR, SEAL_TYPE_LABEL, sealPositionWeight, type Seal, type SealType } from '@/types/seal';
 import { RUBBING_METHOD_LABEL, RUBBING_STATE_LABEL } from '@/types/rubbing';
 import { COMPARE_CONCLUSION_COLOR, COMPARE_CONCLUSION_LABEL } from '@/types/compare';
@@ -66,6 +67,7 @@ export default function ExportView() {
   const rubbings = useAppSelector(selectRubbings);
   const losses = useAppSelector(selectLosses);
   const compares = useAppSelector(selectCompares);
+  const labReports = useAppSelector(selectLabReports);
   const sealTable = useIdbTable<Seal>((database) => database.seals, { sortByUpdatedAt: false });
 
   const [steleId, setSteleId] = useState<string>('');
@@ -81,8 +83,9 @@ export default function ExportView() {
       losses,
       seals: sealTable.rows,
       compares,
+      labReports,
     }),
-    [compares, losses, rubbings, sealTable.rows, steles],
+    [compares, labReports, losses, rubbings, sealTable.rows, steles],
   );
 
   const allCardsLength = useMemo(() => buildAllCatalogCards(context).length, [context]);
@@ -96,9 +99,10 @@ export default function ExportView() {
             losses,
             sealTable.rows,
             compares,
+            labReports,
           )
         : '请选择碑刻。',
-    [compares, losses, rubbings, sealTable.rows, stele],
+    [compares, labReports, losses, rubbings, sealTable.rows, stele],
   );
 
   const stat = useMemo(
@@ -271,6 +275,7 @@ export default function ExportView() {
                       losses,
                       sealTable.rows,
                       compares,
+                      labReports,
                     );
                     message.success(`已导出 ${filename}`);
                   }}
@@ -306,6 +311,7 @@ export default function ExportView() {
                       losses,
                       sealTable.rows,
                       compares,
+                      labReports,
                     );
                     message.success(`已导出 ${filename}（含全部碑刻）`);
                   }}
